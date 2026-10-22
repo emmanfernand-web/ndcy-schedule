@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useTransition } from 'react';
+import { useTransition } from 'react';
 import type { ExportButtonProps } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';

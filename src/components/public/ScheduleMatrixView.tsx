@@ -1,164 +1,198 @@
 'use client';
 
-import type { ScheduleEventWithAssignments } from '@/types/database';
+import { useMemo, useState } from 'react';
+import { CalendarX, Shirt } from 'lucide-react';
+import type { ScheduleMatrixViewProps } from '@/types';
+import type { MemberRole } from '@/types/database';
 import { INSTRUMENTS } from '@/lib/constant';
 import {
-  Table,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableTd,
-  TableTh,
-} from '@/components/ui/table';
+  locationName,
+  dresscodeSwatches,
+  formatDateShort,
+  groupWeekends,
+  matchesWeekend,
+} from '@/lib/weekend';
+import { WeekendPicker } from '@/components/ui/weekend-picker';
+import { RoleIcon } from '@/components/ui/role-icon';
+import { ProbationMark } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { SectionLabel } from '@/components/ui/panel';
+import { SongListView } from './SongListView';
+import { cn } from '@/lib/cn';
 
-interface ScheduleMatrixViewProps {
-  events: ScheduleEventWithAssignments[];
-}
+export function ScheduleMatrixView({
+  events,
+  songs,
+  initialWeekend,
+}: ScheduleMatrixViewProps) {
+  const weekends = useMemo(() => groupWeekends(events), [events]);
+  const [weekendNo, setWeekendNo] = useState<number | null>(
+    initialWeekend ?? weekends[0]?.number ?? null
+  );
+  const [locChoice, setLocChoice] = useState<string | null>(null);
 
-export function ScheduleMatrixView({ events }: ScheduleMatrixViewProps) {
-  if (!events || events.length === 0) {
+  const weekend = weekends.find((w) => w.number === weekendNo) ?? null;
+
+  const handleWeekend = (n: number) => {
+    setWeekendNo(n);
+    setLocChoice(null);
+    const url = new URL(window.location.href);
+    url.searchParams.set('weekend', String(n));
+    window.history.replaceState(null, '', url);
+  };
+
+  if (!weekend) {
     return (
-      <p className="text-slate-500 text-sm py-6 text-center bg-white rounded-xl border border-slate-200">
-        Belum ada jadwal yang dipublikasikan.
-      </p>
+      <EmptyState
+        icon={<CalendarX className="h-6 w-6" strokeWidth={1.5} />}
+        title="Belum ada jadwal"
+      >
+        Jadwal bulan ini belum dipublikasikan. Cek lagi nanti ya.
+      </EmptyState>
     );
   }
 
-  // Kelompokkan event berdasarkan week_number
-  const weeksMap: Record<number, ScheduleEventWithAssignments[]> = {};
-  for (const event of events) {
-    if (!weeksMap[event.week_number]) {
-      weeksMap[event.week_number] = [];
+  // Tab lokasi: satu per lokasi, urut tanggal
+  const locations: { loc: string; date: string }[] = [];
+  for (const e of weekend.events) {
+    if (!locations.some((l) => l.loc === e.location)) {
+      locations.push({ loc: e.location, date: e.service_date });
     }
-    weeksMap[event.week_number].push(event);
   }
+  const activeLoc =
+    locations.find((l) => l.loc === locChoice)?.loc ?? locations[0]?.loc;
+  const locEvents = weekend.events.filter((e) => e.location === activeLoc);
 
-  const sortedWeekNumbers = Object.keys(weeksMap)
-    .map(Number)
-    .sort((a, b) => a - b);
+  const weekendSongs = songs.filter((s) =>
+    matchesWeekend(s.weekend_dates, weekend.dates)
+  );
+  const hasTeam = weekend.events.some(
+    (e) => (e.schedule_assignments ?? []).length > 0
+  );
 
   return (
     <div className="space-y-8">
-      {sortedWeekNumbers.map((weekNum) => {
-        const weekEvents = weeksMap[weekNum];
+      <WeekendPicker
+        weekends={weekends}
+        value={weekendNo}
+        onChange={handleWeekend}
+      />
 
-        return (
-          <div
-            key={weekNum}
-            className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
-          >
-            {/* Header Minggu */}
-            <div className="bg-[#0A192F] text-white px-6 py-3.5 flex items-center justify-between">
-              <h3 className="font-bold text-base text-[#D4AF37]">
-                Minggu ke-{weekNum}
-              </h3>
-            </div>
+      <section className="space-y-4" aria-label="Tim pelayan">
+        <div
+          role="tablist"
+          aria-label="Lokasi"
+          className="grid grid-cols-1 gap-1 rounded-xl border border-line bg-panel p-1 min-[420px]:grid-cols-2"
+        >
+          {locations.map(({ loc, date }) => {
+            const active = loc === activeLoc;
+            return (
+              <button
+                key={loc}
+                role="tab"
+                type="button"
+                aria-selected={active}
+                onClick={() => setLocChoice(loc)}
+                className={cn(
+                  'min-h-11 rounded-lg px-3 text-sm transition-colors',
+                  active
+                    ? 'bg-gold-500/10 font-semibold text-fg ring-1 ring-gold-500'
+                    : 'text-muted hover:text-fg'
+                )}
+              >
+                {locationName(loc)} · {formatDateShort(date)}
+              </button>
+            );
+          })}
+        </div>
 
-            {/* Tabel Matriks Minggu Terkait */}
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHead>
-                  <TableRow className="bg-slate-100/80 border-b border-slate-200">
-                    <TableTh className="w-[120px]">Tanggal</TableTh>
-                    <TableTh className="w-[140px]">Lokasi</TableTh>
-                    {INSTRUMENTS.map((inst) => (
-                      <TableTh key={inst.id} className="min-w-[130px]">
-                        {inst.id}
-                      </TableTh>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {weekEvents.map((event) => {
-                    const formattedDate = new Date(
-                      event.service_date + 'T00:00:00'
-                    ).toLocaleDateString('id-ID', {
-                      day: 'numeric',
-                      month: 'short',
-                    });
+        {locEvents.map((event) => {
+          const byRole = new Map<MemberRole, typeof event.schedule_assignments>();
+          for (const a of event.schedule_assignments ?? []) {
+            byRole.set(a.role, [...(byRole.get(a.role) ?? []), a]);
+          }
+          const swatches = event.dresscode
+            ? dresscodeSwatches(event.dresscode)
+            : [];
 
-                    // Peta penugasan anggota per peran/instrumen
-                    const roleMembersMap: Record<string, typeof event.schedule_assignments> = {};
-                    for (const assignment of event.schedule_assignments ?? []) {
-                      if (!roleMembersMap[assignment.role]) {
-                        roleMembersMap[assignment.role] = [];
-                      }
-                      roleMembersMap[assignment.role].push(assignment);
-                    }
+          return (
+            <div key={event.id} className="space-y-4">
+              {locEvents.length > 1 && (
+                <SectionLabel>{event.sub_service}</SectionLabel>
+              )}
 
+              {event.dresscode && (
+                <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <Shirt className="h-4 w-4 text-muted" strokeWidth={1.5} aria-hidden />
+                  <span className="text-muted">Dresscode</span>
+                  <span className="font-medium">{event.dresscode}</span>
+                  {swatches.length > 0 && (
+                    <span className="flex items-center gap-1.5" aria-hidden>
+                      {swatches.map((s) => (
+                        <span
+                          key={s.name}
+                          title={s.name}
+                          className="h-4 w-4 rounded-full border border-line-strong"
+                          style={{ backgroundColor: s.hex }}
+                        />
+                      ))}
+                    </span>
+                  )}
+                </p>
+              )}
+
+              {!hasTeam ? (
+                <EmptyState title="Tim weekend ini belum ditentukan">
+                  Admin sedang menyusun jadwal. Cek lagi nanti ya.
+                </EmptyState>
+              ) : (
+                <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {INSTRUMENTS.map((inst) => {
+                    const list = byRole.get(inst.id) ?? [];
                     return (
-                      <TableRow
-                        key={event.id}
-                        className="hover:bg-slate-50/80 transition-colors"
+                      <li
+                        key={inst.id}
+                        className="rounded-2xl border border-line bg-panel p-4"
                       >
-                        {/* Tanggal */}
-                        <TableTd className="font-semibold text-[#0A192F] whitespace-nowrap">
-                          {formattedDate}
-                        </TableTd>
-
-                        {/* Lokasi */}
-                        <TableTd>
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200">
-                            {event.location}
-                          </span>
-                        </TableTd>
-
-                        {/* Col untuk Setiap Instrumen */}
-                        {INSTRUMENTS.map((inst) => {
-                          const assignments = roleMembersMap[inst.id] ?? [];
-
-                          return (
-                            <TableTd key={inst.id}>
-                              {assignments.length > 0 ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {assignments.map((assignment) => (
-                                    <span
-                                      key={assignment.id}
-                                      className="inline-flex items-center gap-1 bg-[#0A192F] text-white text-[11px] font-medium px-2.5 py-1 rounded-full shadow-sm"
-                                    >
-                                      {assignment.members?.name}
-                                      {assignment.members?.is_probation && (
-                                        <span className="text-[9px] text-[#D4AF37] font-bold">
-                                          (Prob)
-                                        </span>
-                                      )}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-slate-300 text-xs italic">
-                                  -
+                        <p className="flex items-center gap-2 text-sm font-medium text-muted">
+                          <RoleIcon role={inst.id} className="h-4 w-4" />
+                          {inst.label}
+                        </p>
+                        {list.length > 0 ? (
+                          <ul className="mt-3 flex flex-wrap gap-2">
+                            {list.map((a) => (
+                              <li
+                                key={a.id}
+                                className="rounded-lg bg-raised px-3 py-1.5"
+                              >
+                                <span className="font-medium">
+                                  {a.members?.name}
                                 </span>
-                              )}
-                            </TableTd>
-                          );
-                        })}
-                      </TableRow>
+                                {a.members?.is_probation && (
+                                  <ProbationMark className="ml-2" />
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-3 text-sm italic text-muted">
+                            Belum ditentukan
+                          </p>
+                        )}
+                      </li>
                     );
                   })}
-                </TableBody>
-              </Table>
+                </ul>
+              )}
             </div>
+          );
+        })}
+      </section>
 
-            {/* Information Footer Dresscode per Sesi */}
-            {weekEvents.some((e) => e.dresscode) && (
-              <div className="bg-slate-50 px-6 py-2.5 border-t border-slate-100 text-xs text-slate-600 flex flex-wrap gap-4">
-                {weekEvents.map(
-                  (e) =>
-                    e.dresscode && (
-                      <div key={e.id} className="flex items-center gap-1.5">
-                        <span className="font-semibold text-[#0A192F]">
-                          👕 DC {e.location}:
-                        </span>
-                        <span>{e.dresscode}</span>
-                      </div>
-                    )
-                )}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      <section className="space-y-3" aria-label="Songlist">
+        <SectionLabel>Songlist · Weekend {weekend.number}</SectionLabel>
+        <SongListView songs={weekendSongs} />
+      </section>
     </div>
   );
 }

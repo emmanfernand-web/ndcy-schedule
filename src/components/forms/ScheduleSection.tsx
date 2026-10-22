@@ -1,108 +1,146 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { Check, CircleAlert } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase/client';
 import type { Availability } from '@/types/database';
 import type { ScheduleSectionProps } from '@/types';
+import {
+  availabilityWeekends,
+  formatDateShort,
+  weekendsFromEvents,
+  type AvailabilityWeekend,
+} from '@/lib/weekend';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
+import { cn } from '@/lib/cn';
 
-function generateWeekendDates(monthYear: string): {
-  cp: Array<{ label: string; value: string }>;
-  lw: Array<{ label: string; value: string }>;
-} {
-  // monthYear format: 'YYYY-MM' (contoh: '2026-10')
-  const [year, month] = monthYear.split('-').map(Number);
-  const cpDates: Array<{ label: string; value: string }> = [];
-  const lwDates: Array<{ label: string; value: string }> = [];
-
-  const daysInMonth = new Date(year, month, 0).getDate();
-
-  const formatDate = (iso: string) => {
-    const d = new Date(iso + 'T00:00:00');
-    return d.toLocaleDateString('id-ID', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-    });
-  };
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const current = new Date(year, month - 1, day);
-    const dayOfWeek = current.getDay(); // 0 = Minggu, 6 = Sabtu
-    const isoDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-
-    // CP hanya untuk hari Sabtu (6)
-    if (dayOfWeek === 6) {
-      cpDates.push({
-        label: formatDate(isoDate),
-        value: isoDate,
-      });
-    }
-    // LW hanya untuk hari Minggu (0)
-    else if (dayOfWeek === 0) {
-      lwDates.push({
-        label: formatDate(isoDate),
-        value: isoDate,
-      });
-    }
-  }
-
-  return { cp: cpDates, lw: lwDates };
+export interface SavedAvailability {
+  cp: string[];
+  lw: string[];
 }
 
-type FeedbackState =
-  | { type: 'idle' }
-  | { type: 'success'; message: string }
-  | { type: 'error'; message: string };
+function DateToggle({
+  label,
+  date,
+  checked,
+  onChange,
+}: {
+  label: string;
+  date: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <label className="block cursor-pointer">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="peer sr-only"
+      />
+      <span
+        className={cn(
+          'flex min-h-16 items-center gap-3 rounded-xl border border-line px-4 py-2 transition-colors',
+          'hover:border-line-strong peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold-500',
+          checked && 'border-gold-500 bg-gold-500/10'
+        )}
+      >
+        <span
+          className={cn(
+            'flex h-6 w-6 shrink-0 items-center justify-center rounded-md border',
+            checked
+              ? 'border-gold-500 bg-gold-500 text-navy-950'
+              : 'border-line-strong'
+          )}
+        >
+          {checked && <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />}
+        </span>
+        <span className="flex flex-col">
+          <span className="text-sm text-muted">{label}</span>
+          <span className="font-medium">{formatDateShort(date)}</span>
+        </span>
+        <span className="ml-auto text-xs font-medium text-accent">
+          {checked ? 'Bisa' : ''}
+        </span>
+      </span>
+    </label>
+  );
+}
 
 export function ScheduleSection({
   memberId,
-  memberName,
   period,
-}: ScheduleSectionProps) {
+  onSaved,
+}: ScheduleSectionProps & { onSaved: (a: SavedAvailability) => void }) {
   const [cpSelected, setCpSelected] = useState<string[]>([]);
   const [lwSelected, setLwSelected] = useState<string[]>([]);
-  const [feedback, setFeedback] = useState<FeedbackState>({ type: 'idle' });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const { cp: cpDates, lw: lwDates } = generateWeekendDates(period.month_year);
+  const [eventWeekends, setEventWeekends] = useState<AvailabilityWeekend[]>([]);
+  const weekends = useMemo(
+    () =>
+      eventWeekends.length > 0
+        ? eventWeekends
+        : availabilityWeekends(period.month_year),
+    [eventWeekends, period.month_year]
+  );
+  const allCp = useMemo(() => weekends.flatMap((w) => (w.sat ? [w.sat] : [])), [weekends]);
+  const allLw = useMemo(() => weekends.flatMap((w) => (w.sun ? [w.sun] : [])), [weekends]);
 
-  // Pre-fill existing availability if present
+  // Prefill dari ketersediaan yang sudah tersimpan
   useEffect(() => {
-    const load = async () => {
+    let cancelled = false;
+    const run = async () => {
       const supabase = createBrowserClient();
-      const { data } = await supabase
-        .from('availabilities')
-        .select('cp_dates, lw_dates')
-        .eq('member_id', memberId)
-        .eq('month_year', period.month_year)
-        .maybeSingle<Availability>();
-
-      if (data) {
-        setCpSelected(data.cp_dates ?? []);
-        setLwSelected(data.lw_dates ?? []);
+      const [{ data, error }, { data: evs }] = await Promise.all([
+        supabase
+          .from('availabilities')
+          .select('cp_dates, lw_dates')
+          .eq('member_id', memberId)
+          .eq('month_year', period.month_year)
+          .maybeSingle<Availability>(),
+        supabase
+          .from('schedule_events')
+          .select('week_number, location, service_date')
+          .eq('month_year', period.month_year),
+      ]);
+      if (cancelled) return;
+      setEventWeekends(weekendsFromEvents(evs ?? []));
+      if (error) {
+        setLoadError(true);
       } else {
-        setCpSelected([]);
-        setLwSelected([]);
+        setLoadError(false);
+        setCpSelected(data?.cp_dates ?? []);
+        setLwSelected(data?.lw_dates ?? []);
       }
+      setLoading(false);
     };
-    load();
-  }, [memberId, period.month_year]);
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, period.month_year, attempt]);
 
-  const toggleDate = (
+  const toggle = (
     date: string,
-    selected: string[],
-    setSelected: React.Dispatch<React.SetStateAction<string[]>>
-  ) => {
-    setSelected((prev) =>
+    setter: React.Dispatch<React.SetStateAction<string[]>>
+  ) =>
+    setter((prev) =>
       prev.includes(date) ? prev.filter((d) => d !== date) : [...prev, date]
     );
-  };
+
+  const total = allCp.length + allLw.length;
+  const count = cpSelected.length + lwSelected.length;
 
   const handleSubmit = () => {
     startTransition(async () => {
-      setFeedback({ type: 'idle' });
+      setSaveError(null);
       try {
         const res = await fetch('/api/availability', {
           method: 'POST',
@@ -114,118 +152,117 @@ export function ScheduleSection({
             lw_dates: lwSelected,
           }),
         });
-
         const json = await res.json();
-
         if (!res.ok) {
-          setFeedback({
-            type: 'error',
-            message: json.error ?? 'Terjadi kesalahan. Coba lagi.',
-          });
+          setSaveError(json.error ?? 'Terjadi kesalahan. Coba lagi.');
         } else {
-          setFeedback({
-            type: 'success',
-            message: `Ketersediaan ${memberName} untuk ${period.label} berhasil disimpan! ✨`,
-          });
+          onSaved({ cp: [...cpSelected].sort(), lw: [...lwSelected].sort() });
         }
       } catch {
-        setFeedback({
-          type: 'error',
-          message: 'Koneksi gagal. Periksa internet Anda dan coba lagi.',
-        });
+        setSaveError('Koneksi gagal. Periksa internet kamu lalu coba lagi.');
       }
     });
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* CP Section (Hanya Sabtu) */}
-        <div className="space-y-3">
-          <p className="text-sm font-semibold text-[#0A192F] uppercase tracking-wide border-b-2 border-[#D4AF37] pb-1">
-            🏛️️ CP – Tanggal Tersedia (Sabtu)
-          </p>
-          <div className="space-y-2">
-            {cpDates.map(({ label, value }) => (
-              <label
-                key={`cp-${value}`}
-                className="flex items-center gap-3 cursor-pointer group"
-              >
-                <input
-                  type="checkbox"
-                  value={value}
-                  checked={cpSelected.includes(value)}
-                  onChange={() =>
-                    toggleDate(value, cpSelected, setCpSelected)
-                  }
-                  className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] accent-[#D4AF37] cursor-pointer"
-                />
-                <span className="text-sm text-slate-700 group-hover:text-[#0A192F] transition-colors">
-                  {label}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
+  if (loading) {
+    return (
+      <div className="space-y-3" aria-busy>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-36" />
+        ))}
+      </div>
+    );
+  }
 
-        {/* LW Section (Hanya Minggu) */}
-        <div className="space-y-3">
-          <p className="text-sm font-semibold text-[#0A192F] uppercase tracking-wide border-b-2 border-[#D4AF37] pb-1">
-            🏠 LW – Tanggal Tersedia (Minggu)
-          </p>
-          <div className="space-y-2">
-            {lwDates.map(({ label, value }) => (
-              <label
-                key={`lw-${value}`}
-                className="flex items-center gap-3 cursor-pointer group"
-              >
-                <input
-                  type="checkbox"
-                  value={value}
-                  checked={lwSelected.includes(value)}
-                  onChange={() =>
-                    toggleDate(value, lwSelected, setLwSelected)
-                  }
-                  className="h-4 w-4 rounded border-slate-300 text-[#D4AF37] accent-[#D4AF37] cursor-pointer"
-                />
-                <span className="text-sm text-slate-700 group-hover:text-[#0A192F] transition-colors">
-                  {label}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
+  if (loadError) {
+    return (
+      <EmptyState
+        icon={<CircleAlert className="h-6 w-6" strokeWidth={1.5} />}
+        title="Gagal memuat ketersediaanmu"
+      >
+        <Button variant="secondary" className="mt-2" onClick={() => {
+            setLoading(true);
+            setAttempt((a) => a + 1);
+          }}>
+          Coba lagi
+        </Button>
+      </EmptyState>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          onClick={() => {
+            setCpSelected(allCp);
+            setLwSelected(allLw);
+          }}
+        >
+          Bisa semua
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setCpSelected([]);
+            setLwSelected([]);
+          }}
+        >
+          Kosongkan
+        </Button>
       </div>
 
-      {/* Feedback Alert */}
-      {feedback.type !== 'idle' && (
-        <div
-          className={[
-            'flex items-start gap-2 px-4 py-3 rounded-xl text-sm',
-            feedback.type === 'success'
-              ? 'bg-green-50 text-green-800 border border-green-200'
-              : 'bg-red-50 text-red-800 border border-red-200',
-          ].join(' ')}
-          role="alert"
-        >
-          {feedback.type === 'success' ? (
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600 mt-0.5" />
-          ) : (
-            <XCircle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
-          )}
-          <span>{feedback.message}</span>
-        </div>
-      )}
+      <div className="space-y-3">
+        {weekends.map((w) => (
+          <fieldset
+            key={w.index}
+            className="rounded-2xl border border-line bg-panel p-3"
+          >
+            <legend className="px-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted">
+              Weekend {w.index}
+            </legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {w.sat && (
+                <DateToggle
+                  label="Sabtu · Central Park"
+                  date={w.sat}
+                  checked={cpSelected.includes(w.sat)}
+                  onChange={() => toggle(w.sat!, setCpSelected)}
+                />
+              )}
+              {w.sun && (
+                <DateToggle
+                  label="Minggu · Living World"
+                  date={w.sun}
+                  checked={lwSelected.includes(w.sun)}
+                  onChange={() => toggle(w.sun!, setLwSelected)}
+                />
+              )}
+            </div>
+          </fieldset>
+        ))}
+      </div>
 
-      <Button
-        variant="gold"
-        size="lg"
-        onClick={handleSubmit}
-        isLoading={isPending}
-        className="w-full"
-      >
-        {isPending ? 'Menyimpan...' : '✅ Simpan Ketersediaan'}
-      </Button>
+      {/* Bar simpan menempel di bawah layar (sticky, jadi tidak menutupi konten akhir) */}
+      <div className="sticky bottom-0 z-40 -mx-4 mt-6 border-t border-line bg-navy-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">
+              <span className="text-accent">{count}</span> dari {total} tanggal
+            </p>
+            {saveError && (
+              <p role="alert" className="truncate text-xs text-danger">
+                {saveError}
+              </p>
+            )}
+          </div>
+          <Button variant="primary" size="lg" isLoading={isPending} onClick={handleSubmit}>
+            {isPending ? 'Menyimpan' : 'Simpan Ketersediaan'}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

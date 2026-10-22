@@ -1,13 +1,60 @@
 @import "tailwindcss";
 
-:root {
-  --color-navy: #0a192f;
-  --color-gold: #d4af37;
+/* Palet dasar: navy dalam + emas hangat */
+@theme inline {
+  --color-navy-950: #060d1f;
+  --color-navy-900: #0a1530;
+  --color-navy-800: #0f1f45;
+  --color-navy-700: #172a5c;
+  --color-gold-300: #f2d98a;
+  --color-gold-400: #e4be5c;
+  --color-gold-500: #d4af37;
+  --color-ink-100: #e8ecf5;
+  --color-ink-300: #9aa6c0;
+  --color-paper: #f8f9fc;
+
+  /* Token semantik, nilainya berubah mengikuti tema (.theme-dark / .theme-light) */
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent-text);
+  --color-ok: var(--ok);
+  --color-danger: var(--danger);
+
+  --font-display: var(--nf-display), Georgia, serif;
+  --font-sans: var(--nf-sans), system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-navy: #0a192f;
-  --color-gold: #d4af37;
+.theme-dark {
+  --bg: #060d1f;
+  --panel: #0a1530;
+  --raised: #0f1f45;
+  --line: #172a5c;
+  --line-strong: #2d4585;
+  --fg: #e8ecf5;
+  --muted: #9aa6c0;
+  --accent-text: #f2d98a;
+  --ok: #7fd6a4;
+  --danger: #ff9d9d;
+  color-scheme: dark;
+}
+
+.theme-light {
+  --bg: #f8f9fc;
+  --panel: #ffffff;
+  --raised: #eef1f8;
+  --line: #dce2ef;
+  --line-strong: #aab5d1;
+  --fg: #0a1530;
+  --muted: #4b587a;
+  --accent-text: #7a5c05;
+  --ok: #1d7a49;
+  --danger: #b42318;
+  color-scheme: light;
 }
 
 html {
@@ -15,26 +62,104 @@ html {
 }
 
 body {
-  background-color: #f8fafc; /* slate-50 */
-  color: #1e293b; /* slate-800 */
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: var(--nf-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--color-navy-950);
+  overflow-x: clip;
 }
 
-/* Custom scrollbar for a premium feel */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* iOS tidak auto-zoom kalau font input >= 16px */
+input,
+select,
+textarea {
+  font-size: 16px;
 }
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
+
+:focus-visible {
+  outline: 2px solid var(--color-gold-500);
+  outline-offset: 2px;
 }
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 9999px;
+
+/* Langit malam: gradasi radial + bintang tipis murni CSS */
+.starfield {
+  position: relative;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, #14285a 0%, transparent 70%),
+    var(--bg);
+  isolation: isolate;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.starfield::before,
+.starfield::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+.starfield::before {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, rgb(232 236 245 / 0.7), transparent),
+    radial-gradient(1px 1px at 90px 140px, rgb(232 236 245 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 170px 70px, rgb(242 217 138 / 0.6), transparent),
+    radial-gradient(1px 1px at 240px 190px, rgb(232 236 245 / 0.5), transparent),
+    radial-gradient(1px 1px at 310px 40px, rgb(232 236 245 / 0.6), transparent);
+  background-size: 340px 240px;
+  opacity: 0.55;
+}
+.starfield::after {
+  background-image:
+    radial-gradient(1px 1px at 60px 90px, rgb(232 236 245 / 0.4), transparent),
+    radial-gradient(1px 1px at 200px 20px, rgb(232 236 245 / 0.5), transparent),
+    radial-gradient(1.5px 1.5px at 130px 210px, rgb(242 217 138 / 0.5), transparent);
+  background-size: 530px 380px;
+  opacity: 0.4;
+}
+
+/* Judul besar dengan gradasi emas halus */
+.gold-text {
+  background-image: linear-gradient(180deg, #f8e7a8 0%, #d4af37 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.reveal {
+  animation: reveal 0.35s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
 }

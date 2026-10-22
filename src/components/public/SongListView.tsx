@@ -1,107 +1,92 @@
+import { ListMusic } from 'lucide-react';
+import type { Songlist, SongCategory } from '@/types/database';
 import type { SongListViewProps } from '@/types';
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableTd,
-  TableTh,
-} from '@/components/ui/table';
-import { Music4 } from 'lucide-react';
+import { NewTag } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { cn } from '@/lib/cn';
 
-const categoryColors: Record<string, string> = {
-  P: 'bg-blue-100 text-blue-800',
-  W: 'bg-purple-100 text-purple-800',
-  'P/W': 'bg-indigo-100 text-indigo-800',
-};
+function CategoryBadge({ category }: { category: SongCategory }) {
+  const parts =
+    category === 'P/W'
+      ? [{ k: 'P', l: 'Praise' }, { k: 'W', l: 'Worship' }]
+      : category === 'P'
+        ? [{ k: 'P', l: 'Praise' }]
+        : [{ k: 'W', l: 'Worship' }];
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {parts.map((p) => (
+        <span
+          key={p.k}
+          title={p.l}
+          className="inline-flex items-center gap-1 rounded-md border border-line-strong px-1.5 py-0.5 text-xs text-muted"
+        >
+          <span className="font-semibold text-fg">{p.k}</span>
+          <span className="hidden sm:inline">{p.l}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function KeyChip({ label, value }: { label: string; value: string }) {
+  if (!value) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md bg-raised px-2 py-1 text-xs">
+      <span className="text-muted">{label}</span>
+      <span className="font-semibold text-fg">{value}</span>
+    </span>
+  );
+}
 
 export function SongListView({ songs }: SongListViewProps) {
   if (songs.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-3">
-        <Music4 className="h-10 w-10" />
-        <p className="text-base font-medium">Songlist belum tersedia.</p>
-      </div>
+      <EmptyState
+        icon={<ListMusic className="h-6 w-6" strokeWidth={1.5} />}
+        title="Songlist weekend ini belum tersedia."
+      />
     );
   }
 
-  // Group songs by weekend_dates
-  const grouped = songs.reduce<Record<string, typeof songs>>((acc, song) => {
-    const key = song.weekend_dates;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(song);
-    return acc;
-  }, {});
-
   return (
-    <div className="space-y-8">
-      {Object.entries(grouped).map(([weekend, weekendSongs]) => (
-        <section key={weekend} className="space-y-3">
-          <h3 className="flex items-center gap-2 text-base font-semibold text-[#0A192F]">
-            <span className="inline-block h-2 w-2 rounded-full bg-[#D4AF37]" />
-            Weekend {weekend}
-          </h3>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableTh>#</TableTh>
-                <TableTh>Judul Lagu</TableTh>
-                <TableTh>Artis / By</TableTh>
-                <TableTh>Kategori</TableTh>
-                <TableTh>Key Sequencer</TableTh>
-                <TableTh>Key (Pria)</TableTh>
-                <TableTh>Key (Wanita)</TableTh>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {weekendSongs
-                .sort((a, b) => a.order_index - b.order_index)
-                .map((song, index) => (
-                  <TableRow key={song.id} isHighlighted={song.is_highlighted}>
-                    <TableTd className="text-slate-400 w-8">
-                      {index + 1}
-                    </TableTd>
-                    <TableTd className="font-semibold text-[#0A192F]">
-                      {song.song_title}
-                      {song.is_highlighted && (
-                        <span className="ml-2 text-[10px] bg-[#D4AF37] text-[#0A192F] px-1.5 py-0.5 rounded-full font-bold">
-                          ★
-                        </span>
-                      )}
-                    </TableTd>
-                    <TableTd className="text-slate-600">{song.song_by}</TableTd>
-                    <TableTd>
-                      <span
-                        className={[
-                          'inline-flex px-2 py-0.5 rounded-full text-xs font-semibold',
-                          categoryColors[song.category] ??
-                            'bg-slate-100 text-slate-700',
-                        ].join(' ')}
-                      >
-                        {song.category}
-                      </span>
-                    </TableTd>
-                    <TableTd>
-                      <span className="font-mono font-bold text-[#0A192F]">
-                        {song.sequencer_key || '—'}
-                      </span>
-                    </TableTd>
-                    <TableTd>
-                      <span className="font-mono text-slate-600">
-                        {song.suggested_key_male || '—'}
-                      </span>
-                    </TableTd>
-                    <TableTd>
-                      <span className="font-mono text-slate-600">
-                        {song.suggested_key_female || '—'}
-                      </span>
-                    </TableTd>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </section>
-      ))}
+    <div>
+      <p className="mb-3 text-xs text-muted">
+        <span className="font-semibold text-fg">P</span> = Praise ·{' '}
+        <span className="font-semibold text-fg">W</span> = Worship
+      </p>
+      <ol className="divide-y divide-line rounded-2xl border border-line bg-panel">
+        {songs.map((song: Songlist, i) => (
+          <li key={song.id} className="flex gap-3 p-4">
+            <span
+              className={cn(
+                'w-6 shrink-0 pt-0.5 font-display text-xl leading-none',
+                song.is_highlighted ? 'text-accent' : 'text-muted'
+              )}
+            >
+              {i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                <div className="min-w-0">
+                  <p className="font-medium leading-snug">{song.song_title}</p>
+                  {song.song_by && (
+                    <p className="text-sm text-muted">{song.song_by}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  {song.is_highlighted && <NewTag />}
+                  <CategoryBadge category={song.category} />
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <KeyChip label="Key Seq." value={song.sequencer_key} />
+                <KeyChip label="Key Pria" value={song.suggested_key_male} />
+                <KeyChip label="Key Wanita" value={song.suggested_key_female} />
+              </div>
+            </div>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
