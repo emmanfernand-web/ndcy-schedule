@@ -2,13 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 import { createBrowserClient } from '@/lib/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Music2, Lock } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Field, inputClass } from '@/components/ui/field';
+import { Wordmark } from '@/components/ui/wordmark';
 
 export default function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -25,78 +28,75 @@ export default function AdminLoginPage() {
     });
 
     if (error) {
-      setErrorMsg('Email atau password salah!');
+      setErrorMsg('Email atau password salah.');
       setLoading(false);
     } else {
-      router.push('/admin/matrix');
+      router.push('/admin');
       router.refresh();
     }
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center p-3 bg-[#0A192F] rounded-xl shadow-md mb-2">
-            <Music2 className="h-8 w-8 text-[#D4AF37]" />
-          </div>
-          <h1 className="text-2xl font-bold text-[#0A192F]">Admin Dashboard</h1>
-          <p className="text-sm text-slate-500">NDC Music Ministry Management</p>
-        </div>
+    <main className="flex min-h-dvh items-center justify-center px-4 py-10">
+      <div className="w-full max-w-sm">
+        <Wordmark />
+        <h1 className="mt-3 font-display text-4xl font-semibold text-fg">
+          Masuk Admin
+        </h1>
 
-        <Card className="border-slate-200 shadow-md">
-          <CardHeader>
-            <CardTitle as="h2" className="text-lg font-semibold text-[#0A192F] flex items-center gap-2">
-              <Lock className="h-4 w-4 text-[#D4AF37]" />
-              Masuk Akun Admin
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {errorMsg && (
-              <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-lg text-sm mb-4">
-                {errorMsg}
-              </div>
-            )}
+        <form onSubmit={handleLogin} className="mt-8 space-y-4">
+          <Field label="Email">
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
 
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Email Admin
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@ndc.com"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37] focus:border-transparent transition-all"
-                />
-              </div>
-
+          <Field label="Password">
+            <span className="relative block">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${inputClass} pr-12`}
+              />
               <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-[#0A192F] text-[#D4AF37] font-semibold py-2.5 rounded-lg hover:bg-[#112240] transition duration-200 disabled:opacity-50 shadow-sm"
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted hover:text-fg"
               >
-                {loading ? 'Memproses...' : 'Masuk Dashboard'}
+                {showPassword ? (
+                  <EyeOff className="h-5 w-5" strokeWidth={1.5} />
+                ) : (
+                  <Eye className="h-5 w-5" strokeWidth={1.5} />
+                )}
               </button>
-            </form>
-          </CardContent>
-        </Card>
+            </span>
+          </Field>
+
+          {errorMsg && (
+            <p role="alert" className="text-sm text-danger">
+              {errorMsg}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            isLoading={loading}
+            className="w-full"
+          >
+            {loading ? 'Memproses' : 'Masuk'}
+          </Button>
+        </form>
       </div>
     </main>
   );

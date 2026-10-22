@@ -1,13 +1,13 @@
 import type { Instrument } from '@/types';
 
 export const INSTRUMENTS: Instrument[] = [
-  { id: 'Gitar', label: '🎸 Gitar' },
-  { id: 'Bass', label: '🎵 Bass' },
-  { id: 'Drum', label: '🥁 Drum' },
-  { id: 'Lead Keys', label: '🎹 Lead Keys' },
-  { id: 'Filler', label: '🎼 Filler' },
-  { id: 'WL', label: '🎤 Worship Leader' },
-  { id: 'Singers', label: '🎶 Singers' },
+  { id: 'Gitar', label: 'Gitar' },
+  { id: 'Bass', label: 'Bass' },
+  { id: 'Drum', label: 'Drum' },
+  { id: 'Lead Keys', label: 'Lead Keys' },
+  { id: 'Filler', label: 'Filler' },
+  { id: 'WL', label: 'Worship Leader' },
+  { id: 'Singers', label: 'Singers' },
 ];
 
 export const LOCATIONS = ['CP', 'LW'] as const;

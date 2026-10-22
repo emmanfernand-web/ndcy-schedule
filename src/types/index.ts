@@ -5,10 +5,8 @@
 import type {
   MemberRole,
   MonthlyPeriod,
-  Member,
   Songlist,
   ScheduleEventWithAssignments,
-  Availability,
 } from './database';
 
 // --- Instrument / Role selector ---
@@ -48,35 +46,14 @@ export interface ScheduleSectionProps {
 
 export interface ScheduleMatrixViewProps {
   events: ScheduleEventWithAssignments[];
+  songs: Songlist[];
+  initialWeekend?: number | null;
 }
 
 // --- Song List View props ---
 
 export interface SongListViewProps {
   songs: Songlist[];
-}
-
-// --- Songlist Form props ---
-
-export interface SonglistFormProps {
-  monthYear: string;
-  initialSongs: Songlist[];
-}
-
-// --- Matrix Editor props ---
-
-export interface MatrixEditorProps {
-  monthYear: string;
-  events: ScheduleEventWithAssignments[];
-  availableMembers: Member[];
-  availabilities?: Availability[];
-}
-
-// --- Dress Code Editor props ---
-
-export interface DressCodeEditorProps {
-  events: ScheduleEventWithAssignments[];
-  onUpdate: (eventId: string, dresscode: string) => Promise<void>;
 }
 
 // --- Export Button props ---

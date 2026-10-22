@@ -1,74 +1,71 @@
-import React from 'react';
+import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/cn';
 
-// --- Variant definitions ---
-
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'gold';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
+
+const variants: Record<ButtonVariant, string> = {
+  primary:
+    'bg-gold-500 text-navy-950 font-semibold hover:bg-gold-400 active:bg-gold-500',
+  secondary:
+    'border border-line-strong text-fg hover:bg-raised',
+  ghost: 'text-muted hover:text-fg hover:bg-raised',
+  danger:
+    'border border-danger/50 text-danger hover:bg-danger/10',
+};
+
+const sizes: Record<ButtonSize, string> = {
+  sm: 'min-h-11 px-3.5 text-sm',
+  md: 'min-h-11 px-5 text-base',
+  lg: 'min-h-12 px-6 text-base',
+};
+
+/** Kelas tombol, bisa dipakai juga untuk <Link>. */
+export function buttonClasses(
+  variant: ButtonVariant = 'secondary',
+  size: ButtonSize = 'md',
+  className?: string
+) {
+  return cn(
+    'inline-flex items-center justify-center gap-2 rounded-xl transition-colors',
+    'disabled:opacity-50 disabled:pointer-events-none',
+    variants[variant],
+    sizes[size],
+    className
+  );
+}
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
-  children: React.ReactNode;
 }
 
-const variantClasses: Record<ButtonVariant, string> = {
-  // Navy background, white text — main CTA
-  primary:
-    'bg-[#0A192F] text-white hover:bg-[#112240] border border-[#0A192F] disabled:opacity-50',
-  // Gold background, navy text — accent CTA
-  gold:
-    'bg-[#D4AF37] text-[#0A192F] hover:bg-amber-400 border border-[#D4AF37] font-semibold disabled:opacity-50',
-  // Outlined navy
-  secondary:
-    'bg-white text-[#0A192F] border border-[#0A192F] hover:bg-slate-50 disabled:opacity-50',
-  // Transparent
-  ghost:
-    'bg-transparent text-[#0A192F] hover:bg-slate-100 border border-transparent disabled:opacity-50',
-  // Destructive
-  danger:
-    'bg-red-600 text-white hover:bg-red-700 border border-red-600 disabled:opacity-50',
-};
-
-const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-5 py-2.5 text-sm',
-  lg: 'px-7 py-3 text-base',
-};
-
 export function Button({
-  variant = 'primary',
+  variant = 'secondary',
   size = 'md',
-  isLoading = false,
+  isLoading,
   leftIcon,
-  rightIcon,
+  className,
   children,
-  className = '',
   disabled,
-  ...props
+  type = 'button',
+  ...rest
 }: ButtonProps) {
   return (
     <button
+      type={type}
       disabled={disabled || isLoading}
-      className={[
-        'inline-flex items-center justify-center gap-2 rounded-xl font-medium',
-        'transition-all duration-200 cursor-pointer select-none',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] focus-visible:ring-offset-2',
-        variantClasses[variant],
-        sizeClasses[size],
-        className,
-      ].join(' ')}
-      {...props}
+      className={buttonClasses(variant, size, className)}
+      {...rest}
     >
       {isLoading ? (
-        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
       ) : (
         leftIcon
       )}
       {children}
-      {!isLoading && rightIcon}
     </button>
   );
 }
